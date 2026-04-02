@@ -321,6 +321,28 @@
   <canvas id="img-process-canvas" class="hidden"></canvas>
 
   <script>
+
+    // --- 🌟 ตั้งค่า API ROUTER 🌟 ---
+    const API_URL = "https://script.google.com/macros/s/ใส่_URL_ที่ก๊อปปี้มาจากขั้นตอนที่_2_มาวางตรงนี้/exec";
+
+    async function callAPI(action, payload = {}) {
+        const params = new URLSearchParams();
+        params.append('action', action);
+        params.append('payload', JSON.stringify(payload));
+        try {
+            const response = await fetch(API_URL, { method: 'POST', body: params });
+            const result = await response.json();
+            if (result.success !== undefined) {
+                if (result.success) return result.data !== undefined ? result.data : result;
+                else throw new Error(result.error || result.message || 'API Error');
+            }
+            return result; 
+        } catch(e) {
+            console.error("API Failed:", action, e);
+            throw e;
+        }
+    }
+    
     // --- GLOBAL STATE ---
     let positionCache = {};
     let currentUser = {};
