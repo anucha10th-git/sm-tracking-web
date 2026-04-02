@@ -364,14 +364,13 @@
 
       if(!u || !p) return Swal.fire('Warn','Please enter username and password','warning');
       Swal.fire({title:'Authenticating...', didOpen:()=>Swal.showLoading()});
-      google.script.run.withSuccessHandler(res => {
+      
+      // 🌟 เปลี่ยนจาก google.script.run เป็น callAPI
+      callAPI('checkLogin', { u: u, p: p }).then(res => {
         Swal.close();
         if(res.success) {
-          if (remember) {
-            localStorage.setItem('rememberedUser', u);
-          } else {
-            localStorage.removeItem('rememberedUser');
-          }
+          if (remember) localStorage.setItem('rememberedUser', u);
+          else localStorage.removeItem('rememberedUser');
           currentUser = res.user;
           document.getElementById('u-name').innerText = currentUser.UserName;
           document.getElementById('u-role').innerText = currentUser.Role || 'User';
@@ -384,9 +383,12 @@
           document.getElementById('main-app').classList.remove('page-hidden');
           switchPage('PartnerTasks');
         } else {
-          Swal.fire('Error', res.message, 'error');
+          Swal.fire('Error', res.message || 'Login failed', 'error');
         }
-      }).checkLogin(u,p);
+      }).catch(err => {
+        Swal.close();
+        Swal.fire('Error', err.message, 'error');
+      });
     }
 
     function doLogout() { location.reload(); }
