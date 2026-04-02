@@ -1484,16 +1484,51 @@ function createPremiumDoughnutChart(id, label, dataObj) {
 
     function loadData(sheetName) {
     let realSheet = sheetName === 'UserSetting' ? 'Users' : sheetName;
-    callAPI('getData', { sheetName: realSheet }).then(data => {
-        currentData = data;
-        applyFilters();
-        document.getElementById('t-loading').classList.add('hidden');
-        if (typeof checkAndShowNotifications === 'function') {
-            checkAndShowNotifications();
+    const cacheKey = 'SM_CACHE_' + realSheet;
+
+    // 1. โชว์ลูกข่างหมุนโหลดดักไว้ก่อน
+    const loader = document.getElementById('t-loading');
+    if(loader) loader.classList.remove('hidden');
+
+    // 2. ดึงข้อมูลจาก Cache ในเบราว์เซอร์ของผู้ใช้ (เร็วปรู๊ด 0.1 วินาที)
+    const localCache = sessionStorage.getItem(cacheKey);
+    if (localCache) {
+        try {
+            currentData = JSON.parse(localCache);
+            applyFilters(); // วาดตารางทันทีไม่ต้องรอ Google
+            if(loader) loader.classList.add('hidden'); // ซ่อนตัวโหลดทันที
+            
+            // แสดงข้อความเล็กๆ ว่ากำลังเช็คข้อมูลล่าสุด
+            console.log("Loaded from local cache. Checking for updates...");
+        } catch(e) {
+            console.error("Cache read error", e);
         }
+    }
+
+    // 3. ไปขอดึงข้อมูลใหม่ล่าสุดจาก Google (ทำเงียบๆ เบื้องหลัง)
+    callAPI('getData', { sheetName: realSheet }).then(data => {
+        // เช็คว่าข้อมูลใหม่ กับข้อมูลในแคช เหมือนกันหรือไม่
+        const newDataString = JSON.stringify(data);
+        
+        if (localCache !== newDataString) {
+            // ถ้ามีงานใหม่ หรืองานโดนแก้ ให้บันทึกแคชใหม่
+            sessionStorage.setItem(cacheKey, newDataString);
+            currentData = data;
+            
+            // 🌟 วาดตารางใหม่อีกครั้ง เฉพาะเมื่อข้อมูลมีการเปลี่ยนแปลง
+            applyFilters();
+            
+            // (ถ้าต้องการ) สามารถใส่แจ้งเตือนเล็กๆ มุมจอได้ว่า "ข้อมูลอัปเดตแล้ว"
+        }
+        
+        if(loader) loader.classList.add('hidden');
+        if (typeof checkAndShowNotifications === 'function') checkAndShowNotifications();
+        
     }).catch(err => {
-        console.error(err);
-        document.getElementById('t-loading').innerHTML = '<p class="text-red-500">Failed to load data</p>';
+        console.error("Failed to sync new data:", err);
+        if (!localCache) {
+            if(loader) loader.innerHTML = '<p class="text-red-500 font-bold">Failed to load data. Please refresh.</p>';
+        }
     });
 }
 
@@ -1814,6 +1849,10 @@ function createPremiumDoughnutChart(id, label, dataObj) {
         if(res.success) {
             Swal.fire({ icon: 'success', title: 'Saved!', timer: 1500, showConfirmButton: false });
             closeModal();
+            
+            // 🌟 เพิ่มคำสั่ง 1 บรรทัดนี้: ล้างแคชของหน้านั้นทิ้งไปเลย เพื่อให้โหลดข้อมูลใหม่
+            let realSheet = targetSheet === 'UserSetting' ? 'Users' : targetSheet;
+            sessionStorage.removeItem('SM_CACHE_' + realSheet);
             
             if (res.newData && typeof currentData !== 'undefined') {
                 let idCol = 'Partner ID';
