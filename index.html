@@ -1482,43 +1482,49 @@ function createPremiumDoughnutChart(id, label, dataObj) {
         applyFilters();
     }
 
-    function loadData(sheetName) {
+    // 🌟 เวอร์ชันโหลดความเร็วสูง (ดักจับ Error พื้นที่เต็ม)
+function loadData(sheetName) {
     let realSheet = sheetName === 'UserSetting' ? 'Users' : sheetName;
     const cacheKey = 'SM_CACHE_' + realSheet;
 
-    // 1. โชว์ลูกข่างหมุนโหลดดักไว้ก่อน
     const loader = document.getElementById('t-loading');
     if(loader) loader.classList.remove('hidden');
 
-    // 2. ดึงข้อมูลจาก Cache ในเบราว์เซอร์ของผู้ใช้ (เร็วปรู๊ด 0.1 วินาที)
     const localCache = sessionStorage.getItem(cacheKey);
     if (localCache) {
         try {
             currentData = JSON.parse(localCache);
-            applyFilters(); // วาดตารางทันทีไม่ต้องรอ Google
-            if(loader) loader.classList.add('hidden'); // ซ่อนตัวโหลดทันที
-            
-            // แสดงข้อความเล็กๆ ว่ากำลังเช็คข้อมูลล่าสุด
+            applyFilters(); 
+            if(loader) loader.classList.add('hidden'); 
             console.log("Loaded from local cache. Checking for updates...");
         } catch(e) {
             console.error("Cache read error", e);
         }
     }
 
-    // 3. ไปขอดึงข้อมูลใหม่ล่าสุดจาก Google (ทำเงียบๆ เบื้องหลัง)
     callAPI('getData', { sheetName: realSheet }).then(data => {
-        // เช็คว่าข้อมูลใหม่ กับข้อมูลในแคช เหมือนกันหรือไม่
         const newDataString = JSON.stringify(data);
         
         if (localCache !== newDataString) {
-            // ถ้ามีงานใหม่ หรืองานโดนแก้ ให้บันทึกแคชใหม่
-            sessionStorage.setItem(cacheKey, newDataString);
             currentData = data;
             
-            // 🌟 วาดตารางใหม่อีกครั้ง เฉพาะเมื่อข้อมูลมีการเปลี่ยนแปลง
-            applyFilters();
+            // 🚨 ป้องกันระบบล่มตอนยัดข้อมูลลงแคช 🚨
+            try {
+                sessionStorage.setItem(cacheKey, newDataString);
+            } catch (e) {
+                console.warn("Storage Quota Exceeded! Data too large for browser cache.");
+                // ลองล้างแคชเก่าทิ้งเพื่อเคลียร์พื้นที่
+                sessionStorage.clear(); 
+                try {
+                    // ลองพยายามเซฟอีกครั้ง
+                    sessionStorage.setItem(cacheKey, newDataString);
+                } catch (err) {
+                    // ถ้ายังไม่ได้อีก แปลว่าตารางนี้ใหญ่เกิน 5MB จริงๆ ให้ข้ามการทำ Cache ไปเลย
+                    console.error("Data strictly > 5MB. Skipping local cache for this sheet.");
+                }
+            }
             
-            // (ถ้าต้องการ) สามารถใส่แจ้งเตือนเล็กๆ มุมจอได้ว่า "ข้อมูลอัปเดตแล้ว"
+            applyFilters(); 
         }
         
         if(loader) loader.classList.add('hidden');
