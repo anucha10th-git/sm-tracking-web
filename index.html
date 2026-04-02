@@ -1764,7 +1764,6 @@ function createPremiumDoughnutChart(id, label, dataObj) {
        openModal('create', null);
     }
 
-    // ================= 4. SAVE & DUPLICATE LOGIC =================
     function saveModalForm() {
     const inputs = document.querySelectorAll('#modal-content-area input, #modal-content-area select, #modal-content-area textarea');
     let data = {};
@@ -2655,105 +2654,6 @@ function createPremiumDoughnutChart(id, label, dataObj) {
     };
     reader.readAsDataURL(file);
 }
-
-    // ================= 4. SAVE & DUPLICATE LOGIC =================
-    function saveModalForm() {
-       const inputs = document.querySelectorAll('#modal-content-area input, #modal-content-area select, #modal-content-area textarea');
-       let data = {};
-       
-       inputs.forEach(el => { 
-           if(el.name) {
-               if(el.name === 'Password' && el.disabled) return; 
-               data[el.name] = el.value; 
-           }
-       });
-       data.isEdit = isEditMode;
-       
-       let targetSheet = currentSection;
-
-       if (currentSection === 'PartnerTasks') {
-           const idEl = document.querySelector('input[name="Partner ID"]');
-           if(idEl) data['Partner ID'] = idEl.value;
-           
-           const chkDemuk = document.getElementById('chk-demuk');
-           data['Demuk'] = (chkDemuk && chkDemuk.checked) ? 'Demuk' : '-';
-           data['Informed Position'] = document.getElementById('h-informed-pos').value;
-           data['Selected Position'] = document.getElementById('h-selected-pos').value;
-
-           const errDate = document.querySelector('input[name="Error Date"]').value;
-           const errTime = document.querySelector('input[name="Error Time"]').value;
-           if(errDate && errTime) data['Error Time'] = `${errDate} ${errTime}`;
-
-           const schDate = document.querySelector('input[name="Schedule Date"]').value;
-           const schTime = document.querySelector('input[name="Schedule Time"]').value;
-           if(schDate && schTime) data['Schedule Date'] = `${schDate} ${schTime}`;
-
-           const rejectReason = document.getElementById('reject-reason')?.value;
-           if(rejectReason) data['Problem Details'] = rejectReason;
-           data['Error Time Image'] = document.getElementById('h-err-imgs').value;
-           data['Maintenance Picture'] = document.getElementById('h-maint-imgs').value;
-       }
-       else if(currentSection.includes('Store')) {
-           const deptType = document.querySelector('select[name="Project"]');
-           if(deptType) {
-               targetSheet = (deptType.value === 'Airport') ? 'StoreAirport' : 'Store711';
-           }
-       }
-
-       Swal.fire({title:'Saving...', didOpen:()=>Swal.showLoading()});
-       google.script.run.withSuccessHandler(res => {
-           Swal.close();
-           if(res.success) {
-               Swal.fire({ icon: 'success', title: 'Saved!', timer: 1500, showConfirmButton: false });
-               closeModal();
-               
-               // 🌟 1. อัปเดตข้อมูลใหม่เข้าตารางแบบ Real-time
-               if (res.newData && typeof currentData !== 'undefined') {
-                   let idCol = 'Partner ID';
-                   if(currentSection.includes('Store')) idCol = 'Old Code';
-                   if(currentSection === 'MediaData') idCol = 'Device_id';
-                   if(currentSection === 'UserSetting') idCol = 'UserName';
-
-                   // 🚨 แก้ไขจุดสำคัญ: เอา ID ที่ Server สร้างให้ มาทับคำว่า 'Auto' เพื่อให้ระบบ Sort ได้ถูกต้อง (ขึ้นบนสุดเสมอ)
-                   if (res.id) {
-                       res.newData[idCol] = res.id;
-                   }
-
-                   // จำลองเวลา Create Date ใส่เข้าไปก่อนเพื่อให้ Filter ไม่ทำข้อมูลหาย
-                   if (!isEditMode && currentSection === 'PartnerTasks' && !res.newData['Create Date']) {
-                       const d = new Date();
-                       res.newData['Create Date'] = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth()+1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-                   }
-
-                   if (isEditMode) {
-                       const idx = currentData.findIndex(item => item[idCol] === res.id);
-                       if(idx > -1) currentData[idx] = { ...currentData[idx], ...res.newData };
-                   } else {
-                       currentData.unshift(res.newData); 
-                   }
-               }
-
-               // 🌟 2. ล้างคำค้นหา และบังคับตารางอัปเดตหน้าจอ
-               const searchBox = document.getElementById('g-search');
-               if (searchBox) searchBox.value = '';
-               
-               if (typeof isDailyFilterActive !== 'undefined' && isDailyFilterActive && currentSection === 'PartnerTasks') {
-                   // ถ้ากางหน้าต่าง Daily Report อยู่ ให้อัปเดตตัวเลขให้ใหม่
-                   calculateAndFilterDaily(); 
-               } else {
-                   // โหมดตารางปกติ รีเซ็ตตัวกรองแล้วโหลดตารางใหม่ ข้อมูลใหม่จะเด้งขึ้นมาบรรทัดที่ 1 ทันที
-                   if (typeof clearPartnerFilters === 'function') {
-                       clearPartnerFilters();
-                   } else if (typeof applyFilters === 'function') {
-                       applyFilters();
-                   }
-               }
-               
-           } else {
-               Swal.fire('Error', res.message || res.error, 'error');
-           }
-       }).saveFormData(targetSheet, data, currentUser.UserName);
-    }
 
     // เปลี่ยนชื่อฟังก์ชัน Duplicate ให้ตรงกับปุ่มในหน้า Form
     function promptDuplicate(partnerID) {
